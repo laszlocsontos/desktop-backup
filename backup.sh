@@ -45,7 +45,7 @@ function create_snapshot {
   else
     echo "Freezing ${MOUNTPOINT}"
     fsfreeze -f $MOUNTPOINT
-    mount -o bind $MOUNTPOINT $SNAPSHOT_DIR
+    mount $DEV $SNAPSHOT_DIR
   fi
 }
 
@@ -54,15 +54,15 @@ function delete_snapshot {
   MOUNTPOINT=$1
   TYPE=$2
 
-  SNAPSHOT_DEV=$(get_source_device $SNAPSHOT_DIR)
-  umount $SNAPSHOT_DIR
-
   if [ "${TYPE}" == "lvm" ]; then
     echo "Removing snapshot for ${MOUNTPOINT}"
+    SNAPSHOT_DEV=$(get_source_device $SNAPSHOT_DIR)
+    umount $SNAPSHOT_DIR
     lvremove -f $SNAPSHOT_DEV
   else
     echo "Un-freezing ${MOUNTPOINT}"
     fsfreeze -u $MOUNTPOINT
+    umount $SNAPSHOT_DIR
   fi
 
   rmdir $SNAPSHOT_DIR
