@@ -13,9 +13,10 @@ SNAPSHOT_NAME="rdiff-snapshot"
 SNAPSHOT_DIR="/mnt/${SNAPSHOT_NAME}"
 SNAPSHOT_SIZE="1024M"
 
-# Previous makewhatis should execute successfully:
+# Previous backup should be executing successfully
 [ -f $LOCKFILE ] && exit 0
 
+# Get the source device name for a mounted directory
 function get_source_device {
   MOUNTPOINT=$1
   if [ -z "${MOUNTPOINT}" ]; then
@@ -26,6 +27,7 @@ function get_source_device {
   echo $(findmnt -nl $MOUNTPOINT -o SOURCE)
 }
 
+# Make a snapshot for a given mount point or freeze it if it's not LVM backed
 function create_snapshot {
   MOUNTPOINT=$1
   TYPE=$2
@@ -47,6 +49,7 @@ function create_snapshot {
   fi
 }
 
+# Delete the snapshot of a given mount point or un-freeze it if it's not LVM backed
 function delete_snapshot {
   MOUNTPOINT=$1
   TYPE=$2
@@ -65,6 +68,7 @@ function delete_snapshot {
   rmdir $SNAPSHOT_DIR
 }
 
+# Backup a given file system with rdiff-backup
 function backup_fs {
   MOUNTPOINT=$1
   TYPE=$2
@@ -103,21 +107,25 @@ function cleanup {
   exit 255
 }
 
+# Install traps
 trap cleanup EXIT
 trap 'echo "INTERRUPTED"' SIGINT SIGTERM
 trap 'echo "ERROR"' ERR
 
+# Acquire global lock
 touch $LOCKFILE
 
+# Mount remote file system for placing the backup
 mount -t nfs -o proto=tcp,port=2049 $BACKUP_REMOTE_DIR $BACKUP_LOCAL_DIR
-mkdir -p $BACKUP_LOG_DIR
 
 # Redirect STDOUT and STDERR to a log file
+mkdir -p $BACKUP_LOG_DIR
 exec 1<>$BACKUP_LOG_DIR/backup_$(hostname)_$(date +%Y%m%d%H%M%S).log
 exec 2>&1
 
 echo "Mounted ${BACKUP_REMOTE_DIR} under ${BACKUP_LOCAL_DIR}"
 
+# Go over all the mounted file systems and backup them
 IFS=$'\n'
 for FILESYSTEM in \
   $(lsblk -npr -o MOUNTPOINT,LABEL,NAME,TYPE,FSTYPE | grep -v "^[[:space:]]" | tr " " ",");
