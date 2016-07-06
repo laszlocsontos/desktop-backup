@@ -80,7 +80,7 @@ function backup_fs {
   DEV=$3
   NAME=$4
 
-  echo "Backup of file system of ${NAME} on host $(hostname) started at $(date --rfc-3339=ns)"
+  echo "Backup of file system ${MOUNTPOINT} on host $(hostname) started at $(date --rfc-3339=ns)"
   create_snapshot $MOUNTPOINT $TYPE $DEV
 
   BACKUP_DIR="${BACKUP_LOCAL_DIR}/$(hostname)/${NAME}"
@@ -89,7 +89,7 @@ function backup_fs {
       --print-statistics -v4 $MOUNTPOINT $BACKUP_DIR
 
   delete_snapshot $MOUNTPOINT $TYPE
-  echo "Backup of file system of ${NAME} on host $(hostname) finished at $(date --rfc-3339=ns)"
+  echo "Backup of file system ${MOUNTPOINT} on host $(hostname) finished at $(date --rfc-3339=ns)"
 }
 
 # Upon exit do a cleanup
