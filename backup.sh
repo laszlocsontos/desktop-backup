@@ -109,8 +109,8 @@ function cleanup {
 
 # Install traps
 trap cleanup EXIT
-trap 'echo "INTERRUPTED"' SIGINT SIGTERM
-trap 'echo "ERROR"' ERR
+trap 'echo "STATUS:INTERRUPTED"' SIGINT SIGTERM
+trap 'echo "STATUS:ERROR"' ERR
 
 # Acquire global lock
 touch $LOCKFILE
@@ -135,5 +135,5 @@ do
   backup_fs $MOUNTPOINT $TYPE $DEV $NAME
 done
 
-echo "SUCCESS"
+echo "STATUS:SUCCESS"
 exit 0
