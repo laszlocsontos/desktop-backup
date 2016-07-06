@@ -15,6 +15,7 @@ arg1="${1:-}"
 
 LOCKFILE="/var/lock/backup.lock"
 BACKUP_LOCAL_DIR="/mnt/backup"
+BACKUP_LOG_DIR="${BACKUP_LOCAL_DIR}/logs"
 BACKUP_REMOTE_DIR="192.168.1.100:/backup"
 
 VG_NAME=$(vgs --noheadings --options vg_name | tr -d " ")
@@ -33,7 +34,10 @@ function cleanup {
   exit 255
 }
 
-trap cleanup EXIT SIGINT SIGTERM
+trap cleanup EXIT
+trap 'echo "INTERRUPTED"' SIGINT SIGTERM
+trap 'echo "ERROR"' ERR
+
 touch $LOCKFILE
 
 function create_snapshot {
@@ -89,8 +93,13 @@ function backup_fs {
   echo "Backup of file system of ${NAME} on host $(hostname) finished at $(date --rfc-3339=ns)"
 }
 
-echo "Mounting ${BACKUP_REMOTE_DIR} under ${BACKUP_LOCAL_DIR}"
 mount -t nfs -o proto=tcp,port=2049 $BACKUP_REMOTE_DIR $BACKUP_LOCAL_DIR
+mkdir -p $BACKUP_LOG_DIR
+
+exec 1<>$BACKUP_LOG_DIR/backup_$(hostname)_$(date +%Y%m%d%H%M%S).log
+exec 2>&1
+
+echo "Mounted ${BACKUP_REMOTE_DIR} under ${BACKUP_LOCAL_DIR}"
 
 IFS=$'\n'
 for FILESYSTEM in \
@@ -101,4 +110,5 @@ do
   backup_fs $MOUNTPOINT $TYPE $DEV $NAME
 done
 
+echo "SUCCESS"
 exit 0
