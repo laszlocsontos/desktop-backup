@@ -129,7 +129,7 @@ echo "Mounted ${BACKUP_REMOTE_DIR} under ${BACKUP_LOCAL_DIR}"
 
 IFS=$'\n'
 for FILESYSTEM in \
-  $(lsblk -npr -o MOUNTPOINT,LABEL,NAME,TYPE,FSTYPE | grep -v "^[[:space:]]" | tr " " "," | grep "^\/opt");
+  $(lsblk -npr -o MOUNTPOINT,LABEL,NAME,TYPE,FSTYPE | grep -v "^[[:space:]]" | tr " " ",");
 do
   IFS="," read MOUNTPOINT LABEL DEV TYPE FSTYPE    <<< "${FILESYSTEM}"
   NAME=${LABEL:-${MOUNTPOINT#/}}
