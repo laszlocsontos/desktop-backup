@@ -132,7 +132,9 @@ for FILESYSTEM in \
 do
   IFS="," read MOUNTPOINT LABEL DEV TYPE FSTYPE    <<< "${FILESYSTEM}"
   NAME=${LABEL:-${MOUNTPOINT#/}}
-  backup_fs $MOUNTPOINT $TYPE $DEV $NAME
+  if [ "${FSTYPE}" != "swap" ]; then
+    backup_fs $MOUNTPOINT $TYPE $DEV $NAME
+  fi
 done
 
 echo "STATUS:SUCCESS"
