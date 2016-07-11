@@ -87,9 +87,7 @@ function archive {
       --human-readable --remove-source-files "${ARCHIVE_DIR}/" $ARCHIVE_TARGET_DIR
 
     # For safety reasons we check that ARCHIVE_DIR isn't empty
-    if [ "${ARCHIVE_DIR:-/}" != "/" ]; then
-      rm -rf ${ARCHIVE_DIR}
-    fi
+    [ "${ARCHIVE_DIR:-/}" != "/" ] && rm -rf ${ARCHIVE_DIR}
 
     echo "Archiving ${ARCHIVE_DIR} on host $(hostname) finished at $(date --rfc-3339=ns)"
   done
@@ -122,9 +120,9 @@ function backup {
   do
     IFS="," read MOUNTPOINT LABEL DEV TYPE FSTYPE <<< "${FILESYSTEM}"
     NAME=${LABEL:-${MOUNTPOINT#/}}
-    if [ "${FSTYPE}" != "swap" ]; then
-      backup_fs $MOUNTPOINT $TYPE $DEV $NAME
-    fi
+
+    # Only backup non-swap partitions / volumes
+    [ "${FSTYPE}" != "swap" ] && backup_fs $MOUNTPOINT $TYPE $DEV $NAME
   done
 }
 
