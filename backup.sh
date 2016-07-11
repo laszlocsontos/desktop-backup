@@ -4,17 +4,23 @@ set -o errexit
 set -o pipefail
 set -o nounset
 
+# Previous backup should be executing successfully
 LOCKFILE="/var/lock/backup.lock"
-BACKUP_LOCAL_DIR="/mnt/backup"
-BACKUP_LOG_DIR="${BACKUP_LOCAL_DIR}/logs"
-BACKUP_REMOTE_DIR="192.168.1.100:/backup"
+[ -f $LOCKFILE ] && exit 0
 
+# Load configuration
+ARCHIVE_LOCAL_DIR="/mnt/archive"
+ARCHIVE_REMOTE_DIR="192.168.1.100:/archive"
+BACKUP_LOCAL_DIR="/mnt/backup"
+BACKUP_REMOTE_DIR="192.168.1.100:/backup"
 SNAPSHOT_NAME="rdiff-snapshot"
-SNAPSHOT_DIR="/mnt/${SNAPSHOT_NAME}"
 SNAPSHOT_SIZE="1024M"
 
-# Previous backup should be executing successfully
-[ -f $LOCKFILE ] && exit 0
+[ -f /etc/default/backup ] && . /etc/default/backup
+
+ARCHIVE_LOG_DIR="${ARCHIVE_LOCAL_DIR}/logs"
+BACKUP_LOG_DIR="${BACKUP_LOCAL_DIR}/logs"
+SNAPSHOT_DIR="/mnt/${SNAPSHOT_NAME}"
 
 # Get the source device name for a mounted directory
 function get_source_device {
@@ -68,6 +74,28 @@ function delete_snapshot {
   rmdir $SNAPSHOT_DIR
 }
 
+function archive {
+  for ARCHIVE_DIR in $(find /home -type d -name _archive); do
+    echo "Archiving ${ARCHIVE_DIR} on host $(hostname) started at $(date --rfc-3339=ns)"
+
+    BARE_ARCHIVE_DIR=${ARCHIVE_DIR%/_archive*}
+    BARE_ARCHIVE_DIR=${BARE_ARCHIVE_DIR#/}
+    ARCHIVE_TARGET_DIR="${ARCHIVE_LOCAL_DIR}/$(hostname)/${BARE_ARCHIVE_DIR}"
+    mkdir -p ARCHIVE_TARGET_DIR
+
+    rsync --recursive --links --hard-links --perms --owner --group --times \
+      --human-readable --progress --remove-source-files \
+      "${ARCHIVE_DIR}/" $ARCHIVE_TARGET_DIR
+
+    # For safety reasons we check that ARCHIVE_DIR isn't empty
+    if [ -n "${ARCHIVE_DIR}" ]; then
+      rm -rf "${ARCHIVE_DIR}/*"
+    fi
+
+    echo "Archiving ${ARCHIVE_DIR} on host $(hostname) finished at $(date --rfc-3339=ns)"
+  done
+}
+
 # Backup a given file system with rdiff-backup
 function backup_fs {
   MOUNTPOINT=$1
@@ -87,6 +115,30 @@ function backup_fs {
   echo "Backup of file system ${MOUNTPOINT} on host $(hostname) finished at $(date --rfc-3339=ns)"
 }
 
+# Go over all the mounted file systems and backup them
+function backup {
+  IFS=$'\n'
+  for FILESYSTEM in \
+    $(lsblk -npr -o MOUNTPOINT,LABEL,NAME,TYPE,FSTYPE | grep -v "^[[:space:]]" | tr " " ",");
+  do
+    IFS="," read MOUNTPOINT LABEL DEV TYPE FSTYPE <<< "${FILESYSTEM}"
+    NAME=${LABEL:-${MOUNTPOINT#/}}
+    if [ "${FSTYPE}" != "swap" ]; then
+      backup_fs $MOUNTPOINT $TYPE $DEV $NAME
+    fi
+  done
+}
+
+# Mount remote backup directories
+function mount_remote {
+  REMOTE_DIR=$1
+  LOCAL_DIR=$2
+
+  [ ! -d "${LOCAL_DIR}" ] && mkdir -p $LOCAL_DIR
+  mount -t nfs -o proto=tcp,port=2049 $REMOTE_DIR $LOCAL_DIR
+  echo "Mounted ${REMOTE_DIR} under ${LOCAL_DIR}"
+}
+
 # Upon exit do a cleanup
 function cleanup {
   if [ -d "${SNAPSHOT_DIR}" ]; then
@@ -102,7 +154,9 @@ function cleanup {
   exec 1>&0
   exec 2>&0
 
+  umount $ARCHIVE_LOCAL_DIR
   umount $BACKUP_LOCAL_DIR
+
   rm -f $LOCKFILE
   exit 255
 }
@@ -116,26 +170,19 @@ trap 'echo "STATUS:ERROR"' ERR
 touch $LOCKFILE
 
 # Mount remote file system for placing the backup
-mount -t nfs -o proto=tcp,port=2049 $BACKUP_REMOTE_DIR $BACKUP_LOCAL_DIR
+mount_remote $ARCHIVE_REMOTE_DIR $ARCHIVE_LOCAL_DIR
+mount_remote $BACKUP_REMOTE_DIR $BACKUP_LOCAL_DIR
 
 # Redirect STDOUT and STDERR to a log file
 mkdir -p $BACKUP_LOG_DIR
 exec 1<>$BACKUP_LOG_DIR/backup_$(hostname)_$(date +%Y%m%d%H%M%S).log
 exec 2>&1
 
-echo "Mounted ${BACKUP_REMOTE_DIR} under ${BACKUP_LOCAL_DIR}"
+# Archive obsolete files first
+archive
 
-# Go over all the mounted file systems and backup them
-IFS=$'\n'
-for FILESYSTEM in \
-  $(lsblk -npr -o MOUNTPOINT,LABEL,NAME,TYPE,FSTYPE | grep -v "^[[:space:]]" | tr " " ",");
-do
-  IFS="," read MOUNTPOINT LABEL DEV TYPE FSTYPE    <<< "${FILESYSTEM}"
-  NAME=${LABEL:-${MOUNTPOINT#/}}
-  if [ "${FSTYPE}" != "swap" ]; then
-    backup_fs $MOUNTPOINT $TYPE $DEV $NAME
-  fi
-done
+# Backup when archived data has already been moved
+backup
 
 echo "STATUS:SUCCESS"
 exit 0
