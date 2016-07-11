@@ -87,8 +87,8 @@ function archive {
       --human-readable --remove-source-files "${ARCHIVE_DIR}/" $ARCHIVE_TARGET_DIR
 
     # For safety reasons we check that ARCHIVE_DIR isn't empty
-    if [ -n "${ARCHIVE_DIR}" ]; then
-      rm -rf "${ARCHIVE_DIR}/*"
+    if [ "${ARCHIVE_DIR:-/}" != "/" ]; then
+      rm -rf ${ARCHIVE_DIR}
     fi
 
     echo "Archiving ${ARCHIVE_DIR} on host $(hostname) finished at $(date --rfc-3339=ns)"
