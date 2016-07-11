@@ -84,7 +84,7 @@ function archive {
     mkdir -p ARCHIVE_TARGET_DIR
 
     rsync --recursive --links --hard-links --perms --owner --group --times \
-      --human-readable --progress --remove-source-files \
+      --human-readable --remove-source-files \
       "${ARCHIVE_DIR}/" $ARCHIVE_TARGET_DIR
 
     # For safety reasons we check that ARCHIVE_DIR isn't empty
