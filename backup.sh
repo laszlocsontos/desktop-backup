@@ -107,7 +107,7 @@ function backup_fs {
 
   BACKUP_DIR="${BACKUP_LOCAL_DIR}/$(hostname)/${NAME}"
   findmnt -nl -R $MOUNTPOINT -o TARGET | tail -n+2 | \
-    rdiff-backup --exclude-filelist-stdin --no-eas --no-acls \
+    rdiff-backup --exclude-filelist-stdin --exclude-sockets --no-eas --no-acls \
       --print-statistics -v4 $MOUNTPOINT $BACKUP_DIR
 
   delete_snapshot $MOUNTPOINT $TYPE
